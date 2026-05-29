@@ -1,28 +1,39 @@
 #!/bin/bash
+# Conventional Commits v1.0.0 validator with optional org policy extensions.
 #
-# Git commit message validation hook
-# Ensures commit messages follow project standards
-#
-# Installation:
-#   This file should be at: .git/hooks/commit-msg
-#   Make executable: chmod +x .git/hooks/commit-msg
-#
-# To bypass (use sparingly): git commit --no-verify
+# Defaults:
+# - Require Jira prefix before CC header (LSFB-123: feat(scope): desc)
+# - Enable generic checks only; project profile checks are opt-in
 
-# Colors for output
+set -euo pipefail
+
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-commit_msg_file=$1
+commit_msg_file=${1:-}
+if [ -z "$commit_msg_file" ] || [ ! -f "$commit_msg_file" ]; then
+    echo -e "${RED}❌ Error: commit-msg hook requires a commit message file${NC}"
+    exit 1
+fi
+
 commit_msg=$(cat "$commit_msg_file")
+subject_line=$(printf '%s\n' "$commit_msg" | sed -n '1p')
 
-# Extract just the subject line (first line)
-subject_line=$(echo "$commit_msg" | head -n1)
+# ----------------------------------------------------------------------------
+# Configuration
+# ----------------------------------------------------------------------------
+require_jira_prefix=${MT_HOOK_REQUIRE_JIRA_PREFIX:-true}
+jira_pattern=${MT_HOOK_JIRA_PATTERN:-LSFB-[0-9]+}
+allowed_types_csv=${MT_HOOK_ALLOWED_TYPES:-feat,fix,docs,style,refactor,perf,test,chore,revert}
+enable_project_checks=${MT_HOOK_ENABLE_PROJECT_CHECKS:-false}
+project_profile=${MT_HOOK_PROJECT_PROFILE:-none}
 
-# Flag to track if we have any errors
+# Build regex type alternation from CSV
+valid_types_regex=$(printf '%s' "$allowed_types_csv" | tr ',' '|' | tr -d '[:space:]')
+
 has_errors=0
 has_warnings=0
 
@@ -30,209 +41,127 @@ echo ""
 echo -e "${BLUE}🔍 Validating commit message...${NC}"
 echo ""
 
-# ============================================================================
-# VALIDATION RULES
-# ============================================================================
+header_to_validate="$subject_line"
 
-# Rule 1: Check for JIRA ticket format (LSFB-XXXXX)
-if ! echo "$subject_line" | grep -qE "^LSFB-[0-9]+:"; then
-    echo -e "${RED}❌ Error: Commit message must start with JIRA ticket${NC}"
-    echo -e "${YELLOW}   Format: LSFB-XXXXX: <type>(<scope>): <description>${NC}"
-    echo ""
-    echo -e "   Examples:"
-    echo -e "   ${GREEN}LSFB-49966: feat(migrations): add appointment tenancy support${NC}"
-    echo -e "   ${GREEN}LSFB-12345: fix(api): resolve null pointer in user service${NC}"
-    echo -e "   ${GREEN}LSFB-67890: refactor(commands): extract document type loading${NC}"
+# Optional/required Jira prefix handling
+if [ "$require_jira_prefix" = "true" ]; then
+    jira_prefix_regex="^(${jira_pattern}):[[:space:]]+"
+    if ! printf '%s\n' "$subject_line" | grep -qE "$jira_prefix_regex"; then
+        echo -e "${RED}❌ Error: Commit message must start with Jira ticket${NC}"
+        echo -e "${YELLOW}   Format: TICKET: <type>(<scope>): <description>${NC}"
+        echo -e "   Example: ${GREEN}LSFB-12345: feat(api): add endpoint${NC}"
+        echo ""
+        has_errors=1
+    else
+        header_to_validate=$(printf '%s\n' "$subject_line" | sed -E "s/${jira_prefix_regex}//")
+    fi
+else
+    jira_prefix_regex="^(${jira_pattern}):[[:space:]]+"
+    if printf '%s\n' "$subject_line" | grep -qE "$jira_prefix_regex"; then
+        header_to_validate=$(printf '%s\n' "$subject_line" | sed -E "s/${jira_prefix_regex}//")
+    fi
+fi
+
+# Conventional Commits header:
+# <type>[optional scope][optional !]: <description>
+cc_header_regex="^(${valid_types_regex})(\([[:alnum:]_.\/-]+\))?(!)?: .+"
+if ! printf '%s\n' "$header_to_validate" | grep -qE "$cc_header_regex"; then
+    echo -e "${RED}❌ Error: Invalid Conventional Commits header${NC}"
+    echo -e "${YELLOW}   Expected: <type>[optional scope][optional !]: <description>${NC}"
+    echo -e "   Example: ${GREEN}feat(api)!: remove legacy auth flow${NC}"
     echo ""
     has_errors=1
 fi
 
-# Rule 2: Check for conventional commit type
-# Valid types: feat, fix, refactor, test, docs, chore, perf, style, revert
-valid_types="feat|fix|refactor|test|docs|chore|perf|style|revert"
-if ! echo "$subject_line" | grep -qE "^LSFB-[0-9]+: ($valid_types)(\(|:)"; then
-    echo -e "${RED}❌ Error: Commit must include a valid type${NC}"
-    echo -e "${YELLOW}   Format: LSFB-XXXXX: <type>(<scope>): <description>${NC}"
-    echo ""
-    echo -e "   Valid types:"
-    echo -e "   ${GREEN}feat${NC}     - New feature"
-    echo -e "   ${GREEN}fix${NC}      - Bug fix"
-    echo -e "   ${GREEN}refactor${NC} - Code refactoring (no functional change)"
-    echo -e "   ${GREEN}test${NC}     - Adding or updating tests"
-    echo -e "   ${GREEN}docs${NC}     - Documentation changes"
-    echo -e "   ${GREEN}chore${NC}    - Build process or tooling changes"
-    echo -e "   ${GREEN}perf${NC}     - Performance improvements"
-    echo -e "   ${GREEN}style${NC}    - Code style/formatting (no logic change)"
-    echo -e "   ${GREEN}revert${NC}   - Revert a previous commit"
+# Breaking change support: '!' in header OR BREAKING CHANGE: trailer in body.
+# This hook validates both syntaxes as acceptable; it does not require either.
+if printf '%s\n' "$header_to_validate" | grep -qE "^(${valid_types_regex})(\([[:alnum:]_.\/-]+\))?!: .+"; then
+    :
+elif printf '%s\n' "$commit_msg" | grep -qE "^BREAKING CHANGE: .+"; then
+    :
+elif printf '%s\n' "$commit_msg" | grep -qE "^BREAKING-CHANGE: .+"; then
+    echo -e "${RED}❌ Error: Use 'BREAKING CHANGE:' (with a space), not 'BREAKING-CHANGE:'${NC}"
     echo ""
     has_errors=1
 fi
 
-# Rule 3: Check for scope (recommended but not required)
-if ! echo "$subject_line" | grep -qE "\([a-z]+\):"; then
-    echo -e "${YELLOW}⚠️  Warning: Consider adding a scope for better context${NC}"
-    echo -e "   Example: ${GREEN}LSFB-49966: feat(migrations): ...${NC}"
-    echo -e "   Common scopes: migrations, api, commands, services, tests, docs"
-    echo ""
-    has_warnings=1
-fi
-
-# Rule 4: Check subject line length (max 100 characters)
+# Style warnings (non-blocking)
 if [ ${#subject_line} -gt 100 ]; then
-    echo -e "${YELLOW}⚠️  Warning: Subject line is ${#subject_line} characters (max 100 recommended)${NC}"
-    echo -e "   Consider shortening: \"${subject_line:0:50}...\""
-    echo ""
+    echo -e "${YELLOW}⚠️  Warning: Subject line is ${#subject_line} characters (100 recommended)${NC}"
     has_warnings=1
 fi
 
-# Rule 5: Check for imperative mood (common mistakes)
-if echo "$subject_line" | grep -qiE "(added|fixed|updated|changed|removed|refactored)"; then
-    echo -e "${YELLOW}⚠️  Warning: Use imperative mood (\"add\" not \"added\", \"fix\" not \"fixed\")${NC}"
-    echo -e "   ${RED}Bad:${NC}  feat(api): ${RED}added${NC} new endpoint"
-    echo -e "   ${GREEN}Good:${NC} feat(api): ${GREEN}add${NC} new endpoint"
-    echo ""
+if printf '%s\n' "$header_to_validate" | grep -qiE "(added|fixed|updated|changed|removed|refactored)"; then
+    echo -e "${YELLOW}⚠️  Warning: Prefer imperative mood in description (e.g., 'add', 'fix')${NC}"
     has_warnings=1
 fi
 
-# Rule 6: Check for generic/vague messages
-if echo "$subject_line" | grep -qiE "(update|fix|change|modify) [^:]+\.(php|js|ts|yml)"; then
-    echo -e "${RED}❌ Error: Avoid generic messages with file names${NC}"
-    echo -e "   ${RED}Bad:${NC}  Update Version20251202160545.php"
-    echo -e "   ${GREEN}Good:${NC} LSFB-49966: fix(migration): correct ALGORITHM for ENUM change"
-    echo ""
-    has_errors=1
-fi
-
-# Rule 7: Check for WIP, temp, or debug commits
-if echo "$subject_line" | grep -qiE "(wip|temp|tmp|debug|test commit|asdf|todo)"; then
-    echo -e "${RED}❌ Error: Remove WIP/temp/debug commits before pushing${NC}"
-    echo -e "   Use: ${GREEN}git rebase -i${NC} to clean up your commit history"
-    echo ""
-    has_errors=1
-fi
-
-# Rule 8: Check for all caps (shouting)
-if echo "$subject_line" | grep -qE "[A-Z]{10,}"; then
-    echo -e "${YELLOW}⚠️  Warning: Avoid excessive capitalization${NC}"
-    echo ""
-    has_warnings=1
-fi
-
-# Rule 9: Check for ending punctuation (should not end with period)
-if echo "$subject_line" | grep -qE "\.$"; then
+if printf '%s\n' "$header_to_validate" | grep -qE "\.$"; then
     echo -e "${YELLOW}⚠️  Warning: Subject line should not end with a period${NC}"
-    echo ""
     has_warnings=1
 fi
 
-# Rule 10: Check for body separation (blank line after subject)
-line_count=$(echo "$commit_msg" | wc -l)
-if [ $line_count -gt 1 ]; then
-    second_line=$(echo "$commit_msg" | sed -n '2p')
+line_count=$(printf '%s\n' "$commit_msg" | wc -l)
+if [ "$line_count" -gt 1 ]; then
+    second_line=$(printf '%s\n' "$commit_msg" | sed -n '2p')
     if [ -n "$second_line" ]; then
-        echo -e "${YELLOW}⚠️  Warning: Add blank line between subject and body${NC}"
-        echo -e "   Format:"
-        echo -e "   ${GREEN}LSFB-XXXXX: type(scope): subject${NC}"
-        echo -e "   ${GREEN}<blank line>${NC}"
-        echo -e "   ${GREEN}Body text explaining the why and how...${NC}"
-        echo ""
+        echo -e "${YELLOW}⚠️  Warning: Add a blank line between subject and body${NC}"
         has_warnings=1
     fi
 fi
 
-# ============================================================================
-# MIGRATION-SPECIFIC CHECKS
-# ============================================================================
+# Optional project-specific checks
+if [ "$enable_project_checks" = "true" ] && [ "$project_profile" = "medtrainer" ]; then
+    if git diff --cached --name-only | grep -q "symfony/src/Migrations/"; then
+        echo -e "${BLUE}📦 MedTrainer profile: migration checks enabled${NC}"
 
-# Check if this commit includes migrations
-if git diff --cached --name-only | grep -q "symfony/src/Migrations/"; then
-    echo -e "${BLUE}📦 Migration detected - checking best practices...${NC}"
-    echo ""
-
-    # Check for multiple migrations in one commit
-    migration_count=$(git diff --cached --name-only | grep "symfony/src/Migrations/" | grep -v "Test" | wc -l)
-    if [ $migration_count -gt 1 ]; then
-        echo -e "${YELLOW}⚠️  Warning: Multiple migrations in one commit${NC}"
-        echo -e "   Consider: One migration per commit for easier rollback"
-        echo ""
-        has_warnings=1
-    fi
-
-    # Check if migration commit includes non-migration changes
-    non_migration_count=$(git diff --cached --name-only | grep -v "symfony/src/Migrations/" | wc -l)
-    if [ $non_migration_count -gt 0 ] && [ $migration_count -gt 0 ]; then
-        echo -e "${YELLOW}⚠️  Warning: Migration mixed with other changes${NC}"
-        echo -e "   Consider: Separate migration commits from logic changes"
-        echo ""
-        has_warnings=1
-    fi
-
-    # Check for Pattern B usage (executeStatement)
-    for migration_file in $(git diff --cached --name-only | grep "symfony/src/Migrations/"); do
-        if git diff --cached "$migration_file" | grep -q "addSql.*SET SESSION"; then
-            echo -e "${RED}❌ Error: Migration uses deprecated Pattern A (bundled SET SESSION)${NC}"
-            echo -e "   Use Pattern B (executeStatement) instead"
-            echo -e "   See: CLAUDE.md 'Multi-Statement Safety' section"
-            echo ""
-            has_errors=1
+        migration_count=$(git diff --cached --name-only | grep "symfony/src/Migrations/" | grep -v "Test" | wc -l)
+        if [ "$migration_count" -gt 1 ]; then
+            echo -e "${YELLOW}⚠️  Warning: Multiple migrations in one commit${NC}"
+            has_warnings=1
         fi
-    done
-fi
 
-# ============================================================================
-# TEST-SPECIFIC CHECKS
-# ============================================================================
+        non_migration_count=$(git diff --cached --name-only | grep -v "symfony/src/Migrations/" | wc -l)
+        if [ "$non_migration_count" -gt 0 ] && [ "$migration_count" -gt 0 ]; then
+            echo -e "${YELLOW}⚠️  Warning: Migration mixed with non-migration changes${NC}"
+            has_warnings=1
+        fi
 
-# Check if code changes have corresponding tests
-php_files=$(git diff --cached --name-only | grep "symfony/src/.*\.php$" | grep -v "Migration" | grep -v "Entity" | wc -l)
-test_files=$(git diff --cached --name-only | grep "symfony/tests/.*\.php$" | wc -l)
+        while IFS= read -r migration_file; do
+            [ -z "$migration_file" ] && continue
+            if git diff --cached "$migration_file" | grep -q "addSql.*SET SESSION"; then
+                echo -e "${RED}❌ Error: Deprecated migration SET SESSION pattern detected${NC}"
+                has_errors=1
+            fi
+        done < <(git diff --cached --name-only | grep "symfony/src/Migrations/" || true)
+    fi
 
-if [ $php_files -gt 0 ] && [ $test_files -eq 0 ]; then
-    # Check if this is a test commit
-    if ! echo "$subject_line" | grep -qE "test\("; then
-        echo -e "${YELLOW}⚠️  Warning: No tests included with code changes${NC}"
-        echo -e "   TDD reminder: Tests should accompany feature/fix commits"
-        echo -e "   See: CLAUDE.md 'TDD-First Development' section"
-        echo ""
+    php_files=$(git diff --cached --name-only | grep "symfony/src/.*\.php$" | grep -v "Migration" | grep -v "Entity" | wc -l)
+    test_files=$(git diff --cached --name-only | grep "symfony/tests/.*\.php$" | wc -l)
+    if [ "$php_files" -gt 0 ] && [ "$test_files" -eq 0 ]; then
+        echo -e "${YELLOW}⚠️  Warning: No symfony/tests files staged with PHP source changes${NC}"
         has_warnings=1
     fi
 fi
-
-# ============================================================================
-# FINAL VALIDATION SUMMARY
-# ============================================================================
 
 echo ""
-if [ $has_errors -eq 1 ]; then
+if [ "$has_errors" -eq 1 ]; then
     echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${RED}❌ COMMIT REJECTED - Please fix the errors above${NC}"
+    echo -e "${RED}❌ COMMIT REJECTED - Fix errors above${NC}"
     echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
-    echo -e "To bypass this check (use sparingly):"
-    echo -e "  ${YELLOW}git commit --no-verify${NC}"
-    echo ""
-    echo -e "For help, see:"
-    echo -e "  - ${BLUE}CONTRIBUTING.md${NC} - Commit message guidelines"
-    echo -e "  - ${BLUE}CLAUDE.md${NC} - Project development standards"
+    echo -e "Bypass (use sparingly): ${YELLOW}git commit --no-verify${NC}"
+    echo -e "Hook docs: ${BLUE}README.md${NC}"
     echo ""
     exit 1
 fi
 
-if [ $has_warnings -gt 0 ]; then
+if [ "$has_warnings" -gt 0 ]; then
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${YELLOW}⚠️  WARNINGS DETECTED - Consider improving before pushing${NC}"
+    echo -e "${YELLOW}⚠️  WARNINGS DETECTED${NC}"
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 fi
 
 echo -e "${GREEN}✅ Commit message validated${NC}"
-echo ""
-
-# Show the commit message for review
-echo -e "${BLUE}Your commit message:${NC}"
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo "$commit_msg"
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-
 exit 0
