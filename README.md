@@ -1,6 +1,7 @@
 # mt-git-hooks
 
-Local Git hooks to enforce Conventional Commits v1.0.0 with optional organization policies.
+Local Git hooks to enforce Conventional Commits v0.1.0 with optional organization policies.
+This repo is a developer-side guardrail only; GitHub Actions owns semantic release, image promotion, production deploys, and rollback.
 
 ## What this repo installs
 
@@ -19,13 +20,13 @@ Local Git hooks to enforce Conventional Commits v1.0.0 with optional organizatio
 ### Option 2: Curl one-liner (tag-pinned)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --ref main --install
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --install
 ```
 
 ### Update existing managed hooks
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --ref main --update
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update
 ```
 
 ### Uninstall managed hooks
@@ -35,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/s
 ```
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --uninstall --force
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --uninstall --force
 ```
 
 ### Advanced examples
@@ -59,6 +60,25 @@ curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/s
 ```
 
 Security note: review remote scripts before piping to shell.
+
+## Release Standard Boundary
+
+This repo enforces local release intent only.
+
+- `commit-msg` validates commit shape and optional Jira prefix policy.
+- `pre-commit` blocks direct local commits to protected branches.
+- `post-commit` optionally syncs AI use-case notes.
+
+GitHub Actions should implement the production release contract:
+
+- validated artifact
+- semantic version tag
+- immutable promoted image
+- manual production gate
+- Pulumi `app.version`
+- rollback to a previous release tag
+
+If a repository uses pure Conventional Commits for semantic release, set `MT_HOOK_REQUIRE_JIRA_PREFIX=false`. If it keeps the Jira prefix locally, the release workflow must normalize commit subjects before version calculation.
 
 ## Confluence Alignment
 
@@ -163,6 +183,17 @@ export MT_HOOK_PROJECT_PROFILE=medtrainer
 ## Release Flow Compatibility Note
 
 If your downstream release/deployment flow resolves source images by commit SHA, avoid squash merges for release-bound changes. Squash can change commit lineage and break SHA-to-image alignment checks.
+
+## Production Release Checklist
+
+Use this repo only to help keep commits releaseable. The actual production release workflow should verify:
+
+1. The merged change has a validated artifact.
+2. The release tag is a stable semantic version like `vX.Y.Z`.
+3. The promoted image is immutable and traceable to the source commit.
+4. Production deploy remains manual and tag-gated.
+5. Pulumi records the deployed version in `app.version`.
+6. Rollback reuses the same governed path with a previous release tag.
 
 ## Examples
 
