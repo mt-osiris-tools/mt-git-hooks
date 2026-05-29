@@ -36,6 +36,10 @@ TARGET_REPO="$TMP_DIR/target-repo"
 mkdir -p "$TARGET_REPO"
 git -C "$TARGET_REPO" init >/dev/null 2>&1
 
+# add an unrelated hook to ensure uninstall does not remove it
+printf '#!/bin/bash\necho pre-push\n' > "$TARGET_REPO/.git/hooks/pre-push"
+chmod +x "$TARGET_REPO/.git/hooks/pre-push"
+
 # 1) update should fail before install
 set +e
 (
@@ -116,6 +120,50 @@ if [ "$RC" -ne 0 ]; then
 else
   fail_case "dry-run should enforce review gate without --force"
 fi
+
+# 7) uninstall should fail without --force
+set +e
+(
+  cd "$TARGET_REPO"
+  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --uninstall >/dev/null 2>&1
+)
+RC=$?
+set -e
+if [ "$RC" -ne 0 ]; then
+  pass "uninstall requires --force"
+else
+  fail_case "uninstall should fail without --force"
+fi
+
+# 8) uninstall with --force should remove only managed hooks and keep unrelated hooks
+(
+  cd "$TARGET_REPO"
+  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --uninstall --force >/dev/null
+)
+if [ ! -f "$TARGET_REPO/.git/hooks/pre-commit" ] && [ ! -f "$TARGET_REPO/.git/hooks/commit-msg" ] && [ ! -f "$TARGET_REPO/.git/hooks/post-commit" ]; then
+  pass "uninstall with --force removes managed hooks"
+else
+  fail_case "uninstall with --force did not remove all managed hooks"
+fi
+
+if [ -f "$TARGET_REPO/.git/hooks/pre-push" ]; then
+  pass "uninstall leaves unmanaged hooks untouched"
+else
+  fail_case "uninstall should not remove unmanaged hooks"
+fi
+
+if find "$TARGET_REPO/.git/hooks/mt-git-hooks-backups" -type f -name commit-msg | grep -q .; then
+  pass "uninstall with --force creates backup"
+else
+  fail_case "uninstall with --force did not create backup"
+fi
+
+# 9) uninstall no-op should succeed when managed hooks are absent
+(
+  cd "$TARGET_REPO"
+  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --uninstall --force >/dev/null
+)
+pass "uninstall no-op succeeds when hooks are absent"
 
 echo ""
 echo "Results: $pass_count passed, $fail_count failed"

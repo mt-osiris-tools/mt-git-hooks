@@ -33,6 +33,10 @@ cp "$ROOT_DIR/scripts/git-hooks/commit-msg" "$TARGET_REPO/scripts/git-hooks/comm
 cp "$ROOT_DIR/scripts/git-hooks/post-commit" "$TARGET_REPO/scripts/git-hooks/post-commit"
 chmod +x "$TARGET_REPO/scripts/git-hooks/pre-commit" "$TARGET_REPO/scripts/git-hooks/commit-msg" "$TARGET_REPO/scripts/git-hooks/post-commit"
 
+# unrelated hook should survive uninstall
+printf '#!/bin/bash\necho pre-push\n' > "$TARGET_REPO/.git/hooks/pre-push"
+chmod +x "$TARGET_REPO/.git/hooks/pre-push"
+
 # 1) clean install succeeds
 (
   cd "$TARGET_REPO"
@@ -70,6 +74,50 @@ if find "$TARGET_REPO/.git/hooks/mt-git-hooks-backups" -type f -name pre-commit 
 else
   fail_case "local install --force did not create backup"
 fi
+
+# 4) uninstall blocks without --force
+set +e
+(
+  cd "$TARGET_REPO"
+  "$INSTALLER" --uninstall >/dev/null 2>&1
+)
+RC=$?
+set -e
+if [ "$RC" -ne 0 ]; then
+  pass "local uninstall requires --force"
+else
+  fail_case "local uninstall should require --force"
+fi
+
+# 5) uninstall with --force removes managed hooks and preserves unmanaged hooks
+(
+  cd "$TARGET_REPO"
+  "$INSTALLER" --uninstall --force >/dev/null
+)
+if [ ! -f "$TARGET_REPO/.git/hooks/pre-commit" ] && [ ! -f "$TARGET_REPO/.git/hooks/commit-msg" ] && [ ! -f "$TARGET_REPO/.git/hooks/post-commit" ]; then
+  pass "local uninstall removes managed hooks"
+else
+  fail_case "local uninstall did not remove all managed hooks"
+fi
+
+if [ -f "$TARGET_REPO/.git/hooks/pre-push" ]; then
+  pass "local uninstall preserves unmanaged hooks"
+else
+  fail_case "local uninstall removed unmanaged hook"
+fi
+
+if find "$TARGET_REPO/.git/hooks/mt-git-hooks-backups" -type f -name commit-msg | grep -q .; then
+  pass "local uninstall --force creates backup"
+else
+  fail_case "local uninstall --force did not create backup"
+fi
+
+# 6) uninstall no-op succeeds
+(
+  cd "$TARGET_REPO"
+  "$INSTALLER" --uninstall --force >/dev/null
+)
+pass "local uninstall no-op succeeds when hooks absent"
 
 echo ""
 echo "Results: $pass_count passed, $fail_count failed"

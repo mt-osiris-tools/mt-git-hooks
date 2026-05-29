@@ -14,15 +14,16 @@ RAW_BASE="${MT_GIT_HOOKS_RAW_BASE:-$REPO_RAW_BASE_DEFAULT}"
 
 usage() {
     cat <<USAGE
-Usage: $0 [--install|--update] [--ref <tag-or-branch>] [--hooks-dir <path>] [--dry-run] [--force]
+Usage: $0 [--install|--update|--uninstall] [--ref <tag-or-branch>] [--hooks-dir <path>] [--dry-run] [--force]
 
 Options:
   --install            Install managed hooks (default)
   --update             Update managed hooks; requires existing hooks and --force
-  --ref <value>        Git ref (recommended: release tag)
+  --uninstall          Remove managed hooks; requires --force
+  --ref <value>        Git ref (recommended: release tag; required for install/update)
   --hooks-dir <path>   Override hook destination directory
   --dry-run            Print actions without writing files
-  --force              Approve overwrite and create backups for replaced hooks
+  --force              Approve overwrite/remove and create backups
   -h, --help           Show this help
 
 Environment overrides:
@@ -74,6 +75,9 @@ parse_args() {
             --update)
                 ACTION="update"
                 ;;
+            --uninstall)
+                ACTION="uninstall"
+                ;;
             --ref)
                 shift
                 [ "$#" -gt 0 ] || fail "Missing value for --ref"
@@ -107,10 +111,12 @@ validate_context() {
     require_cmd curl
 
     git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "Run this inside a Git working tree"
-    [ -n "$REF" ] || fail "No ref selected. Pass --ref <tag-or-branch> or set MT_GIT_HOOKS_REF/MT_GIT_HOOKS_VERSION"
+    if [ "$ACTION" != "uninstall" ]; then
+        [ -n "$REF" ] || fail "No ref selected. Pass --ref <tag-or-branch> or set MT_GIT_HOOKS_REF/MT_GIT_HOOKS_VERSION"
+    fi
 }
 
-print_review_block() {
+print_review_block_install_update() {
     local target_dir="$1"
     shift
     local hooks=("$@")
@@ -123,6 +129,35 @@ print_review_block() {
         echo "    Review: curl -fsSL \"$url\" | diff -u \"$existing_file\" -"
     done
     log "Re-run with --force to approve overwrite with backups."
+}
+
+print_review_block_uninstall() {
+    local target_dir="$1"
+    shift
+    local hooks=("$@")
+
+    log "Managed hooks scheduled for uninstall from $target_dir"
+    for hook in "${hooks[@]}"; do
+        echo "  - $target_dir/$hook"
+    done
+    log "Re-run with --force to approve removal with backups."
+}
+
+backup_hooks() {
+    local target_dir="$1"
+    shift
+    local hooks=("$@")
+
+    [ "$DRY_RUN" = true ] && return 0
+    [ "${#hooks[@]}" -gt 0 ] || return 0
+
+    local backup_dir="$target_dir/mt-git-hooks-backups/$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$backup_dir"
+    for hook in "${hooks[@]}"; do
+        [ -f "$target_dir/$hook" ] || continue
+        cp "$target_dir/$hook" "$backup_dir/$hook"
+    done
+    log "Backed up existing hooks to $backup_dir"
 }
 
 install_one_hook() {
@@ -167,6 +202,32 @@ main() {
         fi
     done
 
+    if [ "$ACTION" = "uninstall" ]; then
+        if [ "${#existing[@]}" -eq 0 ]; then
+            log "No managed hooks found to uninstall."
+            exit 0
+        fi
+
+        if [ "$FORCE" != true ]; then
+            print_review_block_uninstall "$target_dir" "${existing[@]}"
+            exit 1
+        fi
+
+        log "Action: $ACTION"
+        log "Hooks directory: $target_dir"
+        [ "$DRY_RUN" = true ] && log "Dry run enabled (no files will be written)"
+
+        backup_hooks "$target_dir" "${existing[@]}"
+
+        for hook in "${existing[@]}"; do
+            log "Removing $target_dir/$hook"
+            [ "$DRY_RUN" = true ] || rm -f "$target_dir/$hook"
+        done
+
+        [ "$DRY_RUN" = true ] && log "Dry run completed." || log "Uninstalled hooks: ${existing[*]}"
+        exit 0
+    fi
+
     if [ "$ACTION" = "update" ] && [ "${#missing[@]}" -gt 0 ]; then
         for hook in "${missing[@]}"; do
             log "Missing managed hook for update: $target_dir/$hook"
@@ -175,12 +236,12 @@ main() {
     fi
 
     if [ "$ACTION" = "install" ] && [ "${#existing[@]}" -gt 0 ] && [ "$FORCE" != true ]; then
-        print_review_block "$target_dir" "${existing[@]}"
+        print_review_block_install_update "$target_dir" "${existing[@]}"
         exit 1
     fi
 
     if [ "$ACTION" = "update" ] && [ "$FORCE" != true ]; then
-        print_review_block "$target_dir" "${MANAGED_HOOKS[@]}"
+        print_review_block_install_update "$target_dir" "${MANAGED_HOOKS[@]}"
         fail "--update requires --force to approve managed hook replacement."
     fi
 
@@ -189,21 +250,15 @@ main() {
     log "Hooks directory: $target_dir"
     [ "$DRY_RUN" = true ] && log "Dry run enabled (no files will be written)"
 
-    if [ "$FORCE" = true ] && [ "$DRY_RUN" != true ]; then
-        local backup_dir="$target_dir/mt-git-hooks-backups/$(date +%Y%m%d-%H%M%S)"
-        mkdir -p "$backup_dir"
-        local to_backup=()
-        if [ "$ACTION" = "update" ]; then
-            to_backup=("${MANAGED_HOOKS[@]}")
-        else
-            to_backup=("${existing[@]}")
-        fi
+    local to_backup=()
+    if [ "$ACTION" = "update" ]; then
+        to_backup=("${MANAGED_HOOKS[@]}")
+    else
+        to_backup=("${existing[@]}")
+    fi
 
-        for hook in "${to_backup[@]}"; do
-            [ -f "$target_dir/$hook" ] || continue
-            cp "$target_dir/$hook" "$backup_dir/$hook"
-        done
-        log "Backed up existing hooks to $backup_dir"
+    if [ "$FORCE" = true ]; then
+        backup_hooks "$target_dir" "${to_backup[@]}"
     fi
 
     for hook in "${MANAGED_HOOKS[@]}"; do

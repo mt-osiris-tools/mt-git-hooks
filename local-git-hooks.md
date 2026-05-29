@@ -32,14 +32,25 @@ Update existing managed hooks:
 curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update --force
 ```
 
+Uninstall managed hooks:
+
+```bash
+./scripts/install-git-hooks.sh --uninstall --force
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --uninstall --force
+```
+
 ## Install Safety Review
 
-To avoid silent replacement of existing hooks, installers now enforce review before overwrite:
+To avoid silent replacement/removal of managed hooks, installers enforce review before overwrite/uninstall:
 
 - If `pre-commit`, `commit-msg`, or `post-commit` already exists, install/update stops by default.
-- Installer output includes review commands to diff existing hooks versus incoming hooks.
-- Use `--force` to approve replacement.
-- Existing hooks are backed up in `.git/hooks/mt-git-hooks-backups/<timestamp>/` before overwrite.
+- Uninstall stops by default when managed hooks exist.
+- Installer output includes review commands/details before approval.
+- Use `--force` to approve replacement/removal.
+- Existing hooks are backed up in `.git/hooks/mt-git-hooks-backups/<timestamp>/` before overwrite or removal.
 
 Examples:
 
@@ -111,6 +122,7 @@ When enabled for `medtrainer`, the hook adds migration and test-adjacency checks
 ## Notes
 
 - Hooks are local to each clone unless installed.
+- Uninstall removes only managed hooks (`pre-commit`, `commit-msg`, `post-commit`) and leaves other hook files untouched.
 - Hooks can be bypassed via `git commit --no-verify`.
 - For release flows that depend on source SHA image validation, avoid squash merges for release-bound changes.
 - Use `scripts/test-commit-msg-hook.sh` to run fixture validation quickly.

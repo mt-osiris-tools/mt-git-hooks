@@ -28,6 +28,16 @@ curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0
 curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update
 ```
 
+### Uninstall managed hooks
+
+```bash
+./scripts/install-git-hooks.sh --uninstall --force
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --uninstall --force
+```
+
 ### Advanced examples
 
 Install from `main` (non-reproducible):
@@ -67,14 +77,14 @@ Mapping examples:
 
 Set `MT_HOOK_REQUIRE_JIRA_PREFIX=false` to use Confluence-style pure headers directly.
 
-
 ## Install Safety Review
 
-To avoid silently replacing existing hooks, installers now enforce a review gate:
+To avoid silently replacing or removing managed hooks, installers enforce a review gate:
 
 - If `pre-commit`, `commit-msg`, or `post-commit` already exists, install/update stops by default.
-- Review the suggested diff commands printed by the installer.
-- Re-run with `--force` to approve overwrite.
+- Uninstall also requires explicit approval.
+- Review the suggested commands printed by the installer.
+- Re-run with `--force` to approve overwrite/removal.
 - Existing hooks are backed up to `.git/hooks/mt-git-hooks-backups/<timestamp>/`.
 
 Examples:
@@ -85,6 +95,10 @@ Examples:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update --force
+```
+
+```bash
+./scripts/install-git-hooks.sh --uninstall --force
 ```
 
 ## Commit Message Rule

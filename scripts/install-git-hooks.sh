@@ -3,15 +3,18 @@
 set -euo pipefail
 
 MANAGED_HOOKS=(pre-commit commit-msg post-commit)
+ACTION="install"
 FORCE=false
 
 usage() {
     cat <<USAGE
-Usage: $0 [--force]
+Usage: $0 [--install|--uninstall] [--force]
 
 Options:
-  --force     Approve overwrite of existing managed hooks and create backups
-  -h, --help  Show this help
+  --install    Install managed hooks (default)
+  --uninstall  Remove managed hooks (requires --force)
+  --force      Approve overwrite/remove and create backups
+  -h, --help   Show this help
 USAGE
 }
 
@@ -27,6 +30,12 @@ fail() {
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
+            --install)
+                ACTION="install"
+                ;;
+            --uninstall)
+                ACTION="uninstall"
+                ;;
             --force)
                 FORCE=true
                 ;;
@@ -43,17 +52,42 @@ parse_args() {
 }
 
 print_review_block() {
-    local target_dir="$1"
-    local source_dir="$2"
-    shift 2
+    local mode="$1"
+    local target_dir="$2"
+    local source_dir="$3"
+    shift 3
     local hooks=("$@")
 
-    echo "[mt-git-hooks] Existing managed hooks detected in $target_dir"
+    if [ "$mode" = "install" ]; then
+        echo "[mt-git-hooks] Existing managed hooks detected in $target_dir"
+        for hook in "${hooks[@]}"; do
+            echo "  - $target_dir/$hook"
+            echo "    Review: diff -u \"$target_dir/$hook\" \"$source_dir/$hook\""
+        done
+        echo "[mt-git-hooks] Re-run with --force to approve overwrite with backups."
+    else
+        echo "[mt-git-hooks] Managed hooks scheduled for uninstall from $target_dir"
+        for hook in "${hooks[@]}"; do
+            echo "  - $target_dir/$hook"
+        done
+        echo "[mt-git-hooks] Re-run with --force to approve removal with backups."
+    fi
+}
+
+backup_hooks() {
+    local target_dir="$1"
+    shift
+    local hooks=("$@")
+
+    [ "${#hooks[@]}" -gt 0 ] || return 0
+
+    local backup_dir="$target_dir/mt-git-hooks-backups/$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$backup_dir"
     for hook in "${hooks[@]}"; do
-        echo "  - $target_dir/$hook"
-        echo "    Review: diff -u \"$target_dir/$hook\" \"$source_dir/$hook\""
+        [ -f "$target_dir/$hook" ] || continue
+        cp "$target_dir/$hook" "$backup_dir/$hook"
     done
-    echo "[mt-git-hooks] Re-run with --force to approve overwrite with backups."
+    log "Backed up existing hooks to $backup_dir"
 }
 
 main() {
@@ -76,27 +110,41 @@ main() {
         fi
     done
 
-    if [ "${#existing[@]}" -gt 0 ] && [ "$FORCE" != true ]; then
-        print_review_block "$target_dir" "$source_dir" "${existing[@]}"
+    if [ "$ACTION" = "install" ]; then
+        if [ "${#existing[@]}" -gt 0 ] && [ "$FORCE" != true ]; then
+            print_review_block "install" "$target_dir" "$source_dir" "${existing[@]}"
+            exit 1
+        fi
+
+        if [ "${#existing[@]}" -gt 0 ]; then
+            backup_hooks "$target_dir" "${existing[@]}"
+        fi
+
+        for hook in "${MANAGED_HOOKS[@]}"; do
+            cp "$source_dir/$hook" "$target_dir/$hook"
+            chmod +x "$target_dir/$hook"
+        done
+
+        log "Installed hooks into $target_dir: ${MANAGED_HOOKS[*]}"
+        exit 0
+    fi
+
+    # uninstall
+    if [ "${#existing[@]}" -eq 0 ]; then
+        log "No managed hooks found to uninstall."
+        exit 0
+    fi
+
+    if [ "$FORCE" != true ]; then
+        print_review_block "uninstall" "$target_dir" "$source_dir" "${existing[@]}"
         exit 1
     fi
 
-    local backup_dir=""
-    if [ "${#existing[@]}" -gt 0 ]; then
-        backup_dir="$target_dir/mt-git-hooks-backups/$(date +%Y%m%d-%H%M%S)"
-        mkdir -p "$backup_dir"
-        for hook in "${existing[@]}"; do
-            cp "$target_dir/$hook" "$backup_dir/$hook"
-        done
-        log "Backed up existing hooks to $backup_dir"
-    fi
-
-    for hook in "${MANAGED_HOOKS[@]}"; do
-        cp "$source_dir/$hook" "$target_dir/$hook"
-        chmod +x "$target_dir/$hook"
+    backup_hooks "$target_dir" "${existing[@]}"
+    for hook in "${existing[@]}"; do
+        rm -f "$target_dir/$hook"
     done
-
-    log "Installed hooks into $target_dir: ${MANAGED_HOOKS[*]}"
+    log "Uninstalled hooks from $target_dir: ${existing[*]}"
 }
 
 main "$@"
