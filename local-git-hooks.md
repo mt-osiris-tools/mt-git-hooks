@@ -32,6 +32,17 @@ Update existing managed hooks:
 curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update
 ```
 
+## Confluence Alignment
+
+Confluence semantic-versioning examples use pure Conventional Commit headers like `feat:` and `fix:`. This repository keeps Jira-prefix enforcement enabled by default, so equivalent messages are prefixed as:
+
+```text
+LSFB-12345: feat: add export endpoint
+LSFB-12345: fix(api): resolve null response
+```
+
+Disable prefix enforcement with `MT_HOOK_REQUIRE_JIRA_PREFIX=false` to match pure Confluence examples directly.
+
 ## `commit-msg` Behavior
 
 ### Base rule
@@ -59,6 +70,14 @@ Accepted formats:
 - `type!:` or `type(scope)!:` in the header
 - `BREAKING CHANGE: ...` in the commit body/footer
 
+### Semantic versioning priority
+
+When downstream release automation evaluates commits, priority follows:
+
+1. major for breaking changes
+2. minor for `feat`
+3. patch for `fix` and lower-priority changes
+
 ### Optional profiles
 
 Project-specific staged-file checks are disabled by default and can be enabled with:
@@ -74,4 +93,5 @@ When enabled for `medtrainer`, the hook adds migration and test-adjacency checks
 
 - Hooks are local to each clone unless installed.
 - Hooks can be bypassed via `git commit --no-verify`.
+- For release flows that depend on source SHA image validation, avoid squash merges for release-bound changes.
 - Use `scripts/test-commit-msg-hook.sh` to run fixture validation quickly.

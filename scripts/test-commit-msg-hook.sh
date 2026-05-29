@@ -45,53 +45,81 @@ run_case() {
   fi
 }
 
-# 1) Pass: standard Jira + CC
+# Core behavior
 run_case "pass_basic" "pass" "" <<'MSG'
 LSFB-123: feat(api): add endpoint
 MSG
 
-# 2) Pass: breaking via !
 run_case "pass_bang_breaking" "pass" "" <<'MSG'
 LSFB-124: feat(auth)!: remove legacy auth
 MSG
 
-# 3) Pass: breaking via footer
 run_case "pass_footer_breaking" "pass" "" <<'MSG'
 LSFB-125: feat(api): change token format
 
 BREAKING CHANGE: clients must refresh tokens
 MSG
 
-# 4) Fail: missing Jira (default policy)
 run_case "fail_missing_jira" "fail" "" <<'MSG'
 feat(api): add endpoint
 MSG
 
-# 5) Fail: invalid type
 run_case "fail_invalid_type" "fail" "" <<'MSG'
 LSFB-126: feature(api): add endpoint
 MSG
 
-# 6) Fail: malformed BREAKING marker
 run_case "fail_bad_breaking_marker" "fail" "" <<'MSG'
 LSFB-127: feat(api): change auth
 
 BREAKING-CHANGE: invalid marker style
 MSG
 
-# 7) Pass: no scope
 run_case "pass_no_scope" "pass" "" <<'MSG'
 LSFB-128: fix: handle nil response
 MSG
 
-# 8) Pass: flexible scope tokens
 run_case "pass_scope_tokens" "pass" "" <<'MSG'
 LSFB-129: feat(api-v2/auth_service): add route guard
 MSG
 
-# 9) Pass: pure CC when Jira disabled
 run_case "pass_no_jira_when_disabled" "pass" "MT_HOOK_REQUIRE_JIRA_PREFIX=false" <<'MSG'
 feat(core): add parser abstraction
+MSG
+
+# Confluence-aligned semantic examples (Jira default mode)
+run_case "pass_confluence_patch_equivalent" "pass" "" <<'MSG'
+LSFB-130: fix(auth): resolve null pointer in login
+MSG
+
+run_case "pass_confluence_minor_equivalent" "pass" "" <<'MSG'
+LSFB-131: feat(export): add csv export endpoint
+MSG
+
+run_case "pass_confluence_major_equivalent" "pass" "" <<'MSG'
+LSFB-132: feat(api): add new auth flow
+
+BREAKING CHANGE: remove /auth/legacy endpoint
+MSG
+
+run_case "pass_confluence_mixed_major_equivalent" "pass" "" <<'MSG'
+LSFB-133: fix(cache): avoid stale tenant config
+
+BREAKING CHANGE: rename public api response fields
+MSG
+
+# Confluence pure-CC examples (prefix disabled mode)
+run_case "pass_confluence_pure_patch" "pass" "MT_HOOK_REQUIRE_JIRA_PREFIX=false" <<'MSG'
+fix: null pointer in login
+MSG
+
+run_case "pass_confluence_pure_minor" "pass" "MT_HOOK_REQUIRE_JIRA_PREFIX=false" <<'MSG'
+feat: add export to csv
+MSG
+
+run_case "pass_confluence_pure_major" "pass" "MT_HOOK_REQUIRE_JIRA_PREFIX=false" <<'MSG'
+feat: add new auth flow
+
+BREAKING CHANGE: remove /auth/legacy
 MSG
 
 echo ""

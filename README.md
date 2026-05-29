@@ -50,6 +50,23 @@ curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0
 
 Security note: review remote scripts before piping to shell.
 
+## Confluence Alignment
+
+This repository aligns with the Confluence semantic-versioning process:
+
+- Confluence examples use pure Conventional Commits (`feat:`, `fix:`, `BREAKING CHANGE:`).
+- This repository keeps a stricter default policy by requiring a Jira prefix before the same Conventional Commit header.
+
+Mapping examples:
+
+- Confluence: `feat: add export endpoint`
+- Default here: `LSFB-12345: feat: add export endpoint`
+
+- Confluence: `feat(auth)!: remove legacy flow`
+- Default here: `LSFB-12345: feat(auth)!: remove legacy flow`
+
+Set `MT_HOOK_REQUIRE_JIRA_PREFIX=false` to use Confluence-style pure headers directly.
+
 ## Commit Message Rule
 
 By default, `commit-msg` requires a Jira-style prefix before a valid Conventional Commits header:
@@ -70,6 +87,14 @@ Supported syntaxes:
 
 - Header marker: `feat!:` or `feat(scope)!:`
 - Footer marker in body: `BREAKING CHANGE: <details>`
+
+### Semantic-release priority model
+
+Semantic versioning systems such as `semantic-release` evaluate all commits since the last tag and apply the highest-priority change type found:
+
+1. major from breaking changes
+2. minor from `feat` commits
+3. patch from `fix` commits and lower-priority change types
 
 ### Default allowed types
 
@@ -100,6 +125,10 @@ Example: enable MedTrainer profile checks:
 export MT_HOOK_ENABLE_PROJECT_CHECKS=true
 export MT_HOOK_PROJECT_PROFILE=medtrainer
 ```
+
+## Release Flow Compatibility Note
+
+If your downstream release/deployment flow resolves source images by commit SHA, avoid squash merges for release-bound changes. Squash can change commit lineage and break SHA-to-image alignment checks.
 
 ## Examples
 
