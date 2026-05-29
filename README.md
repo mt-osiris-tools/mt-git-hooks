@@ -19,13 +19,13 @@ Local Git hooks to enforce Conventional Commits v1.0.0 with optional organizatio
 ### Option 2: Curl one-liner (tag-pinned)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --install
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --ref main --install
 ```
 
 ### Update existing managed hooks
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --ref main --update
 ```
 
 ### Uninstall managed hooks
@@ -35,7 +35,7 @@ curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0
 ```
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --uninstall --force
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --uninstall --force
 ```
 
 ### Advanced examples
@@ -49,13 +49,13 @@ curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/s
 Install to a custom hook path:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --install --hooks-dir .githooks
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --ref main --install --hooks-dir .githooks
 ```
 
 Dry-run preview:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --install --dry-run
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --ref main --install --dry-run
 ```
 
 Security note: review remote scripts before piping to shell.
@@ -94,7 +94,7 @@ Examples:
 ```
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update --force
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --ref main --update --force
 ```
 
 ```bash
