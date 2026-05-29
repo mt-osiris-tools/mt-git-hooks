@@ -12,10 +12,24 @@ This repository provides reusable local Git hooks, with Conventional Commits enf
 | `commit-msg` | Enforces Conventional Commits v1.0.0 header format and optional policy extensions |
 | `post-commit` | Optionally triggers AI use-case sync script when `ai-use-cases/*.md` changes |
 
-Install all hooks to `.git/hooks` using:
+## Installation
+
+Local clone install:
 
 ```bash
 ./scripts/install-git-hooks.sh
+```
+
+Curl installer (recommended pinned ref):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --install
+```
+
+Update existing managed hooks:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update
 ```
 
 ## `commit-msg` Behavior

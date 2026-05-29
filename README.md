@@ -8,11 +8,47 @@ Local Git hooks to enforce Conventional Commits v1.0.0 with optional organizatio
 - `commit-msg`: validates commit message format
 - `post-commit`: optional AI use-case sync helper
 
-Install hooks into the current repo clone:
+## Install Options
+
+### Option 1: Local install from clone
 
 ```bash
 ./scripts/install-git-hooks.sh
 ```
+
+### Option 2: Curl one-liner (tag-pinned)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --install
+```
+
+### Update existing managed hooks
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update
+```
+
+### Advanced examples
+
+Install from `main` (non-reproducible):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/scripts/install-via-curl.sh | bash -s -- --ref main --install
+```
+
+Install to a custom hook path:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --install --hooks-dir .githooks
+```
+
+Dry-run preview:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --install --dry-run
+```
+
+Security note: review remote scripts before piping to shell.
 
 ## Commit Message Rule
 
@@ -48,6 +84,9 @@ Configure behavior through environment variables:
 - `MT_HOOK_ALLOWED_TYPES` (default: `feat,fix,docs,style,refactor,perf,test,chore,revert`)
 - `MT_HOOK_ENABLE_PROJECT_CHECKS` (default: `false`)
 - `MT_HOOK_PROJECT_PROFILE` (default: `none`, supported: `medtrainer`)
+- `MT_GIT_HOOKS_REF` (curl installer default ref)
+- `MT_GIT_HOOKS_VERSION` (alternate ref env var)
+- `MT_GIT_HOOKS_RAW_BASE` (override raw host base URL)
 
 Example: pure Conventional Commits (no Jira required):
 
