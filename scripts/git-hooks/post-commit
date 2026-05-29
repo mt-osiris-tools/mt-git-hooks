@@ -1,0 +1,39 @@
+#!/bin/bash
+# Git Post-Commit Hook for AI Use Cases Sync
+# Automatically syncs AI use case documentation to central location after each commit
+#
+# This hook is triggered after a successful git commit
+
+# Configuration - Try environment variable first, then common locations
+if [ -n "$AI_USECASES_SYNC_SCRIPT" ]; then
+    SYNC_SCRIPT="$AI_USECASES_SYNC_SCRIPT"
+elif [ -n "$AI_USECASES_DIR" ]; then
+    SYNC_SCRIPT="$AI_USECASES_DIR/sync-ai-use-cases.sh"
+else
+    SYNC_SCRIPT="$HOME/Documents/ai-use-case-hub/sync-ai-use-cases.sh"
+fi
+
+# Only sync if the sync script exists
+if [ ! -f "$SYNC_SCRIPT" ]; then
+    exit 0
+fi
+
+# Get the list of changed files in the last commit
+CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD)
+
+# Check if any AI use case files were modified
+if echo "$CHANGED_FILES" | grep -q "ai-use-cases/.*\.md"; then
+    echo ""
+    echo "🤖 AI Use Cases detected in commit, syncing to central location..."
+
+    # Run sync script
+    if "$SYNC_SCRIPT" "$(git rev-parse --show-toplevel)"; then
+        echo "✓ AI Use Cases synced successfully"
+    else
+        echo "⚠ Warning: AI Use Cases sync failed (non-fatal)"
+    fi
+
+    echo ""
+fi
+
+exit 0
