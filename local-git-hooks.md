@@ -29,7 +29,26 @@ curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0
 Update existing managed hooks:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --update --force
+```
+
+## Install Safety Review
+
+To avoid silent replacement of existing hooks, installers now enforce review before overwrite:
+
+- If `pre-commit`, `commit-msg`, or `post-commit` already exists, install/update stops by default.
+- Installer output includes review commands to diff existing hooks versus incoming hooks.
+- Use `--force` to approve replacement.
+- Existing hooks are backed up in `.git/hooks/mt-git-hooks-backups/<timestamp>/` before overwrite.
+
+Examples:
+
+```bash
+./scripts/install-git-hooks.sh --force
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/v0.1.0/scripts/install-via-curl.sh | bash -s -- --ref v0.1.0 --install --force
 ```
 
 ## Confluence Alignment

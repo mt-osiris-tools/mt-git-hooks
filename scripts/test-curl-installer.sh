@@ -24,7 +24,6 @@ fail_case() {
   fail_count=$((fail_count + 1))
 }
 
-# Build local raw source layout: <base>/<ref>/scripts/git-hooks/<hook>
 RAW_BASE_DIR="$TMP_DIR/raw"
 REF="testref"
 SOURCE_HOOK_DIR="$RAW_BASE_DIR/$REF/scripts/git-hooks"
@@ -33,7 +32,6 @@ cp "$ROOT_DIR/scripts/git-hooks/pre-commit" "$SOURCE_HOOK_DIR/pre-commit"
 cp "$ROOT_DIR/scripts/git-hooks/commit-msg" "$SOURCE_HOOK_DIR/commit-msg"
 cp "$ROOT_DIR/scripts/git-hooks/post-commit" "$SOURCE_HOOK_DIR/post-commit"
 
-# Temp git repo to install into
 TARGET_REPO="$TMP_DIR/target-repo"
 mkdir -p "$TARGET_REPO"
 git -C "$TARGET_REPO" init >/dev/null 2>&1
@@ -52,30 +50,72 @@ else
   fail_case "update should fail before install"
 fi
 
-# 2) install should succeed
+# 2) install should fail if one managed hook already exists and no --force
+cp "$ROOT_DIR/scripts/git-hooks/pre-commit" "$TARGET_REPO/.git/hooks/pre-commit"
+set +e
 (
   cd "$TARGET_REPO"
-  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --ref "$REF" --install >/dev/null
+  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --ref "$REF" --install >/dev/null 2>&1
 )
-if [ -x "$TARGET_REPO/.git/hooks/pre-commit" ] && [ -x "$TARGET_REPO/.git/hooks/commit-msg" ] && [ -x "$TARGET_REPO/.git/hooks/post-commit" ]; then
-  pass "install creates executable managed hooks"
+RC=$?
+set -e
+if [ "$RC" -ne 0 ]; then
+  pass "install blocks overwrite without --force"
 else
-  fail_case "install did not create expected hooks"
+  fail_case "install should block overwrite without --force"
 fi
 
-# 3) update should succeed once installed
+# 3) install should succeed with --force and create backup
 (
   cd "$TARGET_REPO"
-  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --ref "$REF" --update >/dev/null
+  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --ref "$REF" --install --force >/dev/null
 )
-pass "update succeeds when managed hooks exist"
+if [ -x "$TARGET_REPO/.git/hooks/pre-commit" ] && [ -x "$TARGET_REPO/.git/hooks/commit-msg" ] && [ -x "$TARGET_REPO/.git/hooks/post-commit" ]; then
+  pass "install with --force creates executable managed hooks"
+else
+  fail_case "install with --force did not create expected hooks"
+fi
 
-# 4) dry-run should succeed
+if find "$TARGET_REPO/.git/hooks/mt-git-hooks-backups" -type f -name pre-commit | grep -q .; then
+  pass "install with --force creates backup"
+else
+  fail_case "install with --force did not create backup"
+fi
+
+# 4) update should fail without --force
+set +e
 (
   cd "$TARGET_REPO"
-  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --ref "$REF" --install --dry-run >/dev/null
+  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --ref "$REF" --update >/dev/null 2>&1
 )
-pass "dry-run succeeds"
+RC=$?
+set -e
+if [ "$RC" -ne 0 ]; then
+  pass "update requires --force"
+else
+  fail_case "update should fail without --force"
+fi
+
+# 5) update should succeed with --force
+(
+  cd "$TARGET_REPO"
+  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --ref "$REF" --update --force >/dev/null
+)
+pass "update succeeds with --force"
+
+# 6) dry-run should enforce review gate when hooks already exist
+set +e
+(
+  cd "$TARGET_REPO"
+  MT_GIT_HOOKS_RAW_BASE="file://$RAW_BASE_DIR" "$INSTALLER" --ref "$REF" --install --dry-run >/dev/null 2>&1
+)
+RC=$?
+set -e
+if [ "$RC" -ne 0 ]; then
+  pass "dry-run enforces review gate without --force"
+else
+  fail_case "dry-run should enforce review gate without --force"
+fi
 
 echo ""
 echo "Results: $pass_count passed, $fail_count failed"

@@ -9,18 +9,20 @@ ACTION="install"
 REF="${MT_GIT_HOOKS_REF:-${MT_GIT_HOOKS_VERSION:-}}"
 HOOKS_DIR=""
 DRY_RUN=false
+FORCE=false
 RAW_BASE="${MT_GIT_HOOKS_RAW_BASE:-$REPO_RAW_BASE_DEFAULT}"
 
 usage() {
     cat <<USAGE
-Usage: $0 [--install|--update] [--ref <tag-or-branch>] [--hooks-dir <path>] [--dry-run]
+Usage: $0 [--install|--update] [--ref <tag-or-branch>] [--hooks-dir <path>] [--dry-run] [--force]
 
 Options:
   --install            Install managed hooks (default)
-  --update             Update managed hooks; fails if managed hooks are not already installed
+  --update             Update managed hooks; requires existing hooks and --force
   --ref <value>        Git ref (recommended: release tag)
   --hooks-dir <path>   Override hook destination directory
   --dry-run            Print actions without writing files
+  --force              Approve overwrite and create backups for replaced hooks
   -h, --help           Show this help
 
 Environment overrides:
@@ -85,6 +87,9 @@ parse_args() {
             --dry-run)
                 DRY_RUN=true
                 ;;
+            --force)
+                FORCE=true
+                ;;
             -h|--help)
                 usage
                 exit 0
@@ -103,6 +108,21 @@ validate_context() {
 
     git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "Run this inside a Git working tree"
     [ -n "$REF" ] || fail "No ref selected. Pass --ref <tag-or-branch> or set MT_GIT_HOOKS_REF/MT_GIT_HOOKS_VERSION"
+}
+
+print_review_block() {
+    local target_dir="$1"
+    shift
+    local hooks=("$@")
+
+    log "Existing managed hooks detected in $target_dir"
+    for hook in "${hooks[@]}"; do
+        local existing_file="$target_dir/$hook"
+        local url="$RAW_BASE/$REF/scripts/git-hooks/$hook"
+        echo "  - $existing_file"
+        echo "    Review: curl -fsSL \"$url\" | diff -u \"$existing_file\" -"
+    done
+    log "Re-run with --force to approve overwrite with backups."
 }
 
 install_one_hook() {
@@ -137,21 +157,54 @@ main() {
     [ -d "$target_dir" ] || fail "Hooks directory not found: $target_dir"
     [ -w "$target_dir" ] || fail "Hooks directory is not writable: $target_dir"
 
-    if [ "$ACTION" = "update" ]; then
-        local missing=0
-        for hook in "${MANAGED_HOOKS[@]}"; do
-            if [ ! -f "$target_dir/$hook" ]; then
-                log "Missing managed hook for update: $target_dir/$hook"
-                missing=1
-            fi
+    local existing=()
+    local missing=()
+    for hook in "${MANAGED_HOOKS[@]}"; do
+        if [ -f "$target_dir/$hook" ]; then
+            existing+=("$hook")
+        else
+            missing+=("$hook")
+        fi
+    done
+
+    if [ "$ACTION" = "update" ] && [ "${#missing[@]}" -gt 0 ]; then
+        for hook in "${missing[@]}"; do
+            log "Missing managed hook for update: $target_dir/$hook"
         done
-        [ "$missing" -eq 0 ] || fail "--update requires existing managed hooks. Run --install first."
+        fail "--update requires existing managed hooks. Run --install first."
+    fi
+
+    if [ "$ACTION" = "install" ] && [ "${#existing[@]}" -gt 0 ] && [ "$FORCE" != true ]; then
+        print_review_block "$target_dir" "${existing[@]}"
+        exit 1
+    fi
+
+    if [ "$ACTION" = "update" ] && [ "$FORCE" != true ]; then
+        print_review_block "$target_dir" "${MANAGED_HOOKS[@]}"
+        fail "--update requires --force to approve managed hook replacement."
     fi
 
     log "Action: $ACTION"
     log "Ref: $REF"
     log "Hooks directory: $target_dir"
     [ "$DRY_RUN" = true ] && log "Dry run enabled (no files will be written)"
+
+    if [ "$FORCE" = true ] && [ "$DRY_RUN" != true ]; then
+        local backup_dir="$target_dir/mt-git-hooks-backups/$(date +%Y%m%d-%H%M%S)"
+        mkdir -p "$backup_dir"
+        local to_backup=()
+        if [ "$ACTION" = "update" ]; then
+            to_backup=("${MANAGED_HOOKS[@]}")
+        else
+            to_backup=("${existing[@]}")
+        fi
+
+        for hook in "${to_backup[@]}"; do
+            [ -f "$target_dir/$hook" ] || continue
+            cp "$target_dir/$hook" "$backup_dir/$hook"
+        done
+        log "Backed up existing hooks to $backup_dir"
+    fi
 
     for hook in "${MANAGED_HOOKS[@]}"; do
         install_one_hook "$hook" "$target_dir/$hook"
