@@ -9,6 +9,11 @@ This repo is a developer-side guardrail only; GitHub Actions owns semantic relea
 - `commit-msg`: validates commit message format
 - `post-commit`: optional AI use-case sync helper
 
+## Commit Format Reference
+
+The canonical commit format, release-intent examples, and pure Conventional Commits opt-out are documented in [COMMIT_FORMAT.md](COMMIT_FORMAT.md).
+The default local rule is `<type>: [<ticket>] <short description>`.
+
 ## Install Options
 
 ### Option 1: Local install from clone
@@ -65,7 +70,7 @@ Security note: review remote scripts before piping to shell.
 
 This repo enforces local release intent only.
 
-- `commit-msg` validates commit shape and optional Jira prefix policy.
+- `commit-msg` validates the `<type>: [<ticket>] <short description>` header and allowed types.
 - `pre-commit` blocks direct local commits to protected branches.
 - `post-commit` optionally syncs AI use-case notes.
 
@@ -78,24 +83,7 @@ GitHub Actions should implement the production release contract:
 - Pulumi `app.version`
 - rollback to a previous release tag
 
-If a repository uses pure Conventional Commits for semantic release, set `MT_HOOK_REQUIRE_JIRA_PREFIX=false`. If it keeps the Jira prefix locally, the release workflow must normalize commit subjects before version calculation.
-
-## Confluence Alignment
-
-This repository aligns with the Confluence semantic-versioning process:
-
-- Confluence examples use pure Conventional Commits (`feat:`, `fix:`, `BREAKING CHANGE:`).
-- This repository keeps a stricter default policy by requiring a Jira prefix before the same Conventional Commit header.
-
-Mapping examples:
-
-- Confluence: `feat: add export endpoint`
-- Default here: `LSFB-12345: feat: add export endpoint`
-
-- Confluence: `feat(auth)!: remove legacy flow`
-- Default here: `LSFB-12345: feat(auth)!: remove legacy flow`
-
-Set `MT_HOOK_REQUIRE_JIRA_PREFIX=false` to use Confluence-style pure headers directly.
+If a repository uses pure Conventional Commits for semantic release, set `MT_HOOK_REQUIRE_JIRA_PREFIX=false`. If it keeps the ticket requirement locally, the release workflow must normalize commit subjects before version calculation.
 
 ## Install Safety Review
 
@@ -121,65 +109,6 @@ curl -fsSL https://raw.githubusercontent.com/mt-osiris-tools/mt-git-hooks/main/s
 ./scripts/install-git-hooks.sh --uninstall --force
 ```
 
-## Commit Message Rule
-
-By default, `commit-msg` requires a Jira-style prefix before a valid Conventional Commits header:
-
-```text
-LSFB-12345: feat(api): add tenant-aware endpoint
-```
-
-The Conventional Commits header is validated as:
-
-```text
-<type>[optional scope][optional !]: <description>
-```
-
-### Breaking changes
-
-Supported syntaxes:
-
-- Header marker: `feat!:` or `feat(scope)!:`
-- Footer marker in body: `BREAKING CHANGE: <details>`
-
-### Semantic-release priority model
-
-Semantic versioning systems such as `semantic-release` evaluate all commits since the last tag and apply the highest-priority change type found:
-
-1. major from breaking changes
-2. minor from `feat` commits
-3. patch from `fix` commits and lower-priority change types
-
-### Default allowed types
-
-- `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `revert`
-
-## Configuration
-
-Configure behavior through environment variables:
-
-- `MT_HOOK_REQUIRE_JIRA_PREFIX` (default: `true`)
-- `MT_HOOK_JIRA_PATTERN` (default: `LSFB-[0-9]+`)
-- `MT_HOOK_ALLOWED_TYPES` (default: `feat,fix,docs,style,refactor,perf,test,chore,revert`)
-- `MT_HOOK_ENABLE_PROJECT_CHECKS` (default: `false`)
-- `MT_HOOK_PROJECT_PROFILE` (default: `none`, supported: `medtrainer`)
-- `MT_GIT_HOOKS_REF` (curl installer default ref)
-- `MT_GIT_HOOKS_VERSION` (alternate ref env var)
-- `MT_GIT_HOOKS_RAW_BASE` (override raw host base URL)
-
-Example: pure Conventional Commits (no Jira required):
-
-```bash
-export MT_HOOK_REQUIRE_JIRA_PREFIX=false
-```
-
-Example: enable MedTrainer profile checks:
-
-```bash
-export MT_HOOK_ENABLE_PROJECT_CHECKS=true
-export MT_HOOK_PROJECT_PROFILE=medtrainer
-```
-
 ## Release Flow Compatibility Note
 
 If your downstream release/deployment flow resolves source images by commit SHA, avoid squash merges for release-bound changes. Squash can change commit lineage and break SHA-to-image alignment checks.
@@ -194,20 +123,6 @@ Use this repo only to help keep commits releaseable. The actual production relea
 4. Production deploy remains manual and tag-gated.
 5. Pulumi records the deployed version in `app.version`.
 6. Rollback reuses the same governed path with a previous release tag.
-
-## Examples
-
-Valid (default policy):
-
-- `LSFB-1001: feat(ui): add release banner`
-- `LSFB-1002: fix(auth)!: remove legacy token fallback`
-- `LSFB-1003: feat(api): migrate token format` with body containing `BREAKING CHANGE: clients must refresh tokens`
-
-Invalid:
-
-- `feat(api): add endpoint` (invalid when Jira prefix is required)
-- `LSFB-1004: feature(api): add endpoint` (invalid type)
-- `LSFB-1005: feat(api): add endpoint.` (allowed but warned for trailing period)
 
 ## Bypass
 

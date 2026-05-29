@@ -45,81 +45,84 @@ run_case() {
   fi
 }
 
-# Core behavior
-run_case "pass_basic" "pass" "" <<'MSG'
-LSFB-123: feat(api): add endpoint
+run_case "pass_feat" "pass" "" <<'MSG'
+feat: [LSFB-53603] add provider search endpoint
 MSG
 
-run_case "pass_bang_breaking" "pass" "" <<'MSG'
-LSFB-124: feat(auth)!: remove legacy auth
+run_case "pass_fix" "pass" "" <<'MSG'
+fix: [LSFB-53604] correct token expiration validation
 MSG
 
-run_case "pass_footer_breaking" "pass" "" <<'MSG'
-LSFB-125: feat(api): change token format
-
-BREAKING CHANGE: clients must refresh tokens
+run_case "pass_perf" "pass" "" <<'MSG'
+perf: [LSFB-53605] reduce provider lookup query time
 MSG
 
-run_case "fail_missing_jira" "fail" "" <<'MSG'
-feat(api): add endpoint
+run_case "pass_chore" "pass" "" <<'MSG'
+chore: [LSFB-53606] update framework dependency
+MSG
+
+run_case "pass_refactor" "pass" "" <<'MSG'
+refactor: [LSFB-53607] simplify assignment signer validation
+MSG
+
+run_case "pass_docs" "pass" "" <<'MSG'
+docs: [LSFB-53608] update API usage notes
+MSG
+
+run_case "pass_test" "pass" "" <<'MSG'
+test: [LSFB-53609] add tests for signer ordering
+MSG
+
+run_case "pass_style" "pass" "" <<'MSG'
+style: [LSFB-53610] format assignment service file
+MSG
+
+run_case "pass_ci" "pass" "" <<'MSG'
+ci: [LSFB-53611] update release workflow cache
+MSG
+
+run_case "pass_build" "pass" "" <<'MSG'
+build: [LSFB-53612] update package build config
+MSG
+
+run_case "pass_revert" "pass" "" <<'MSG'
+revert: [LSFB-53613] revert provider search endpoint
+MSG
+
+run_case "pass_breaking_footer" "pass" "" <<'MSG'
+feat: [LSFB-53614] replace assignment signer API
+
+BREAKING CHANGE: remove the previous assignment signer contract
+MSG
+
+run_case "fail_missing_ticket" "fail" "" <<'MSG'
+feat: add provider search endpoint
+MSG
+
+run_case "fail_old_prefix_format" "fail" "" <<'MSG'
+LSFB-53603: feat: add provider search endpoint
 MSG
 
 run_case "fail_invalid_type" "fail" "" <<'MSG'
-LSFB-126: feature(api): add endpoint
+feature: [LSFB-53615] add provider search endpoint
+MSG
+
+run_case "fail_scope_not_allowed" "fail" "" <<'MSG'
+feat(api): [LSFB-53616] add provider search endpoint
+MSG
+
+run_case "fail_header_bang_not_allowed" "fail" "" <<'MSG'
+feat!: [LSFB-53617] replace assignment signer API
 MSG
 
 run_case "fail_bad_breaking_marker" "fail" "" <<'MSG'
-LSFB-127: feat(api): change auth
+feat: [LSFB-53618] replace assignment signer API
 
 BREAKING-CHANGE: invalid marker style
 MSG
 
-run_case "pass_no_scope" "pass" "" <<'MSG'
-LSFB-128: fix: handle nil response
-MSG
-
-run_case "pass_scope_tokens" "pass" "" <<'MSG'
-LSFB-129: feat(api-v2/auth_service): add route guard
-MSG
-
-run_case "pass_no_jira_when_disabled" "pass" "MT_HOOK_REQUIRE_JIRA_PREFIX=false" <<'MSG'
-feat(core): add parser abstraction
-MSG
-
-# Confluence-aligned semantic examples (Jira default mode)
-run_case "pass_confluence_patch_equivalent" "pass" "" <<'MSG'
-LSFB-130: fix(auth): resolve null pointer in login
-MSG
-
-run_case "pass_confluence_minor_equivalent" "pass" "" <<'MSG'
-LSFB-131: feat(export): add csv export endpoint
-MSG
-
-run_case "pass_confluence_major_equivalent" "pass" "" <<'MSG'
-LSFB-132: feat(api): add new auth flow
-
-BREAKING CHANGE: remove /auth/legacy endpoint
-MSG
-
-run_case "pass_confluence_mixed_major_equivalent" "pass" "" <<'MSG'
-LSFB-133: fix(cache): avoid stale tenant config
-
-BREAKING CHANGE: rename public api response fields
-MSG
-
-# Confluence pure-CC examples (prefix disabled mode)
-run_case "pass_confluence_pure_patch" "pass" "MT_HOOK_REQUIRE_JIRA_PREFIX=false" <<'MSG'
-fix: null pointer in login
-MSG
-
-run_case "pass_confluence_pure_minor" "pass" "MT_HOOK_REQUIRE_JIRA_PREFIX=false" <<'MSG'
-feat: add export to csv
-MSG
-
-run_case "pass_confluence_pure_major" "pass" "MT_HOOK_REQUIRE_JIRA_PREFIX=false" <<'MSG'
-feat: add new auth flow
-
-BREAKING CHANGE: remove /auth/legacy
+run_case "pass_no_ticket_when_disabled" "pass" "MT_HOOK_REQUIRE_JIRA_PREFIX=false" <<'MSG'
+feat: add provider search endpoint
 MSG
 
 echo ""

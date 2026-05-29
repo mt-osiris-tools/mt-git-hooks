@@ -7,7 +7,7 @@ This is a short companion note. The canonical documentation for install, policy,
 ## What this repo installs
 
 - `pre-commit`: blocks direct commits to `main` and `master`
-- `commit-msg`: validates Conventional Commits with optional Jira-prefix enforcement
+- `commit-msg`: validates the `<type>: [<ticket>] <short description>` rule
 - `post-commit`: optional AI use-case sync helper
 
 ## When to read README.md
@@ -15,9 +15,8 @@ This is a short companion note. The canonical documentation for install, policy,
 Use `README.md` for:
 
 - installation and uninstall commands
-- the Jira-prefix vs pure Conventional Commits choice
+- the canonical commit rule and link to `COMMIT_FORMAT.md`
 - release-boundary guidance for GitHub Actions and production deploys
-- configuration variables
 - examples and validation commands
 
 ## Local Reminder
